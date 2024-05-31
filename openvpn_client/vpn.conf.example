@@ -1,0 +1,50 @@
+client
+dev tun
+proto udp
+resolv-retry infinite
+remote-random
+nobind
+tun-mtu 1500
+tun-mtu-extra 32
+mssfix 1450
+persist-key
+persist-tun
+ping 15
+ping-restart 0
+ping-timer-rem
+reneg-sec 0
+comp-lzo
+redirect-gateway def1
+
+explicit-exit-notify 3
+
+remote-cert-tls server
+tls-version-min 1.2
+
+#mute 10000
+mute-replay-warnings
+
+auth-user-pass /vpn/vpn.cert_auth
+auth-nocache
+
+verb 3
+pull
+fast-io
+cipher AES-256-CBC
+auth SHA512
+key-direction 1
+
+<ca>
+-----BEGIN CERTIFICATE-----
+<insert yours here>
+-----END CERTIFICATE-----
+</ca>
+
+<tls-auth>
+#
+# 2048 bit OpenVPN static key
+#
+-----BEGIN OpenVPN Static key V1-----
+<insert yours here>
+-----END OpenVPN Static key V1-----
+</tls-auth>

@@ -1,0 +1,83 @@
+# this file is just an example of using override files to change variables for different environments - eg. production
+# https://docs.docker.com/compose/extends/
+
+# rename this file to docker-compose.prod.yml and replace these with your own parameters
+---
+version: "3.5"
+
+services:
+
+  foundryvtt:
+    environment:
+      - FOUNDRY_HOSTNAME=${GAME_EXTERNAL_DOMAIN}
+      - FOUNDRY_USERNAME=changeme
+      - FOUNDRY_PASSWORD=changeme
+      - FOUNDRY_ADMIN_KEY=changeme
+      - FOUNDRY_LICENSE_KEY=changeme
+
+  cloudflare-homedomain:
+    environment:
+      - ZONE=${MEDIA_EXTERNAL_DOMAIN}
+      - HOST=${MEDIA_EXTERNAL_DOMAIN}
+      - EMAIL=${EMAIL_ADDRESS}
+      - API=${CLOUDFLARE_API_KEY}
+
+  cloudflare-gamedomain:
+    environment:
+      - ZONE=${GAME_EXTERNAL_DOMAIN}
+      - HOST=${GAME_EXTERNAL_DOMAIN}
+      - EMAIL=${EMAIL_ADDRESS}
+      - API=${CLOUDFLARE_API_KEY}
+
+  letsencrypt:
+    environment:
+      - URL=${MEDIA_EXTERNAL_DOMAIN}
+      - SUBDOMAINS=wildcard
+      - EXTRA_DOMAINS=${GAME_EXTERNAL_DOMAIN}
+      - VALIDATION=dns
+      - DNSPLUGIN=cloudflare
+      - EMAIL=${EMAIL_ADDRESS}
+      - MAXMINDDB_LICENSE_KEY=changeme
+  
+  crowdsec:
+    environment:
+      - CROWDSEC_API_KEY=${CROWDSEC_API_KEY}
+
+  nextcloud_db:
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+      - MYSQL_USER=changeme
+      - MYSQL_PASSWORD=changeme
+      - MYSQL_DATABASE=changeme
+
+  rclonebrowser:
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
+  rclonecron:
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - SYNC_SRC='aws-src:src-bucket-name'
+      - SYNC_DEST='b2-bak:target-bucket-name'
+    
+  paperless-web:
+    environment:
+      - PAPERLESS_SECRET_KEY=changeme
+      - PAPERLESS_URL=https://paperless.${MEDIA_EXTERNAL_DOMAIN}
+      - PAPERLESS_ADMIN_USER=changeme
+      - PAPERLESS_ADMIN_PASSWORD=changeme
+      - PAPERLESS_ADMIN_MAIL=${EMAIL_ADDRESS}
+      - PAPERLESS_EMAIL_FROM=${EMAIL_ADDRESS}
+      - PAPERLESS_EMAIL_HOST=changeme
+      - PAPERLESS_EMAIL_PORT=changeme
+      - PAPERLESS_EMAIL_HOST_USER=changeme
+      - PAPERLESS_EMAIL_HOST_PASSWORD=changeme
+      - PAPERLESS_EMAIL_USE_SSL=true
+      # - PAPERLESS_EMAIL_USE_TLS=true
+
+  # duckdns:
+  #   environment:
+  #     - SUBDOMAINS=changeme1,changeme2
+  #     - TOKEN=changeme
