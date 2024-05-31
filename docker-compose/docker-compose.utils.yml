@@ -1,0 +1,187 @@
+---
+version: "3.5"
+
+services:
+
+  ## automatic restart of dead containers
+  autoheal:
+    image: willfarrell/autoheal
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      # AUTOHEAL_CONTAINER_LABEL: '${AUTOHEAL_CONTAINER_LABEL:-all}'
+      AUTOHEAL_INTERVAL: '10'
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+
+  ## remote backups
+  duplicati:
+    image: lscr.io/linuxserver/duplicati
+    container_name: duplicati
+    restart: unless-stopped
+    ports:
+      - 8200:8200
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/duplicati:/config
+      - ${BACKUPS_STORAGE}:/backups
+      - ${CLOUD_STORAGE}:${MAPPED_CLOUD_STORAGE}
+      - ${DOCKER_STORAGE}:${MAPPED_DOCKER_STORAGE}
+      - ${PLEX_STORAGE}:${MAPPED_PLEX_STORAGE}
+      - ${MEDIA_STORAGE}:${MAPPED_MEDIA_STORAGE}:ro
+
+  ## ui for rclone jobs
+  rclonebrowser:
+    image: romancin/rclonebrowser
+    container_name: rclonebrowser
+    restart: unless-stopped
+    ports:
+      - 5800:5800
+      - 5900:5900
+    environment:
+      - TZ=${TZ}
+      - GROUP_ID=${PGID}
+      - USER_ID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/rclonebrowser/config:/config
+      - ${DOCKER_STORAGE}/rclonebrowser/media:/media
+
+  ## cron for rclone jobs
+  rclonecron:
+    image: pfidr/rclone
+    container_name: rclonecron
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - GID=${PGID}
+      - UID=${PUID}
+      # below for cron: https://hub.docker.com/r/pfidr/rclone
+      # and for rclone flags: https://rclone.org/docs/
+      - SYNC_OPTS_EVAL='--fast-list --delete-after --retries 3 --low-level-retries 10 --contimeout 60s --timeout 300s'
+      - RCLONE_CMD=sync
+      - CRON='30 3 * * FRI'
+      - OUTPUT_LOG=true
+      - ROTATE_LOG=30 # days (anything older gets deleted)
+      # - FORCE_SYNC=1 # true means sync on startup for testing
+    volumes:
+      - ${DOCKER_STORAGE}/rclonebrowser/config/xdg/config/rclone:/config
+      - ${DOCKER_STORAGE}/rclonebrowser/cron/logs:/logs
+
+  crowdsec:
+    image: docker.io/crowdsecurity/crowdsec
+    container_name: crowdsec
+    restart: unless-stopped
+    # ports:
+    #   - 8090:8080
+    #   - 6060:6060
+    # networks:
+    #   - external_web_network
+    #   - external_game_network
+    #   - bitwarden_network
+    depends_on:
+      - letsencrypt
+    security_opt:
+      - no-new-privileges=true
+    environment:
+      - GID=${PGID}
+      - BOUNCER_KEY_SWAG=${CROWDSEC_API_KEY}
+      - COLLECTIONS=crowdsecurity/nginx crowdsecurity/http-cve crowdsecurity/whitelist-good-actors andreasbrett/paperless-ngx
+    volumes:
+      - ${DOCKER_STORAGE}/crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml
+      - ${DOCKER_STORAGE}/crowdsec/data:/var/lib/crowdsec/data
+      - ${DOCKER_STORAGE}/crowdsec/config:/etc/crowdsec
+      - ${DOCKER_STORAGE}/letsencrypt/log/nginx:/var/log/nginx:ro
+      - ${DOCKER_STORAGE}/paperless/data/log:/var/log/paperless:ro
+      # - ${DOCKER_STORAGE}/crowdsec/http_notification.yaml:/etc/crowdsec/notifications/http_notification.yaml
+
+  ## antivirus scanner
+  clamav:
+    image: mkodockx/docker-clamav:alpine
+    container_name: clamav
+    # ports:
+    #   - 3310:3310
+    networks:
+      - nextcloud_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "./check.sh"]
+      interval: 60s
+      retries: 3
+      start_period: 120s
+    volumes:
+      - ${DOCKER_STORAGE}/clamav:/var/lib/clamav
+
+  ## hdd SMART status reporter
+  scrutiny:
+    image: ghcr.io/analogj/scrutiny:master-omnibus
+    container_name: scrutiny
+    cap_add:
+      - SYS_RAWIO
+      - SYS_ADMIN
+    ports:
+      - "8080:8080" # webapp
+      # - "8086:8086" # influxDB admin
+    volumes:
+      - /run/udev:/run/udev:ro
+      - ${DOCKER_STORAGE}/scrutiny/config:/opt/scrutiny/config
+      - ${DOCKER_STORAGE}/scrutiny/influxdb:/opt/scrutiny/influxdb
+    devices:
+      - "/dev/sda"
+      - "/dev/sdb"
+      - "/dev/sdc"
+      - "/dev/sdd"
+      - "/dev/sde"
+      - "/dev/sdf"
+      - "/dev/sdg"
+      - "/dev/sdh"
+      - "/dev/sdi"
+      - "/dev/sdj"
+      - "/dev/sdk"
+      - "/dev/sdl"
+      - "/dev/sdm"
+      - "/dev/sdn"
+      - "/dev/sdo"
+      - "/dev/sdp"
+      - "/dev/sdq"
+
+  ## visualize drive space
+  # qdirstat:
+  #   image: lscr.io/linuxserver/qdirstat
+  #   container_name: qdirstat
+  #   restart: unless-stopped
+  #   ports:
+  #     # - 3000:3000 # http
+  #     - 3001:3001 # https
+  #   networks:
+  #     - internal_web_network
+  #   environment:
+  #     - TZ=${TZ}
+  #     - PGID=${PGID}
+  #     - PUID=${PUID}
+  #     # - SUBFOLDER=/qdirstat/ # reverse proxy not working
+  #     - TITLE=qdirstat
+  #     - DISABLE_IPV6=true
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${DOCKER_STORAGE}/qdirstat:/config
+  #     # - ${DOCKER_STORAGE}:/data/dockerstorage
+  #     # - ${DOWNLOADS_STORAGE}:/data/downloads
+  #     # - ${MEDIA_STORAGE}:/data/media
+  #     - /:/data/root
+
+  ## remote file access (not as secure, only enable when needed)
+  # sftp:
+  #   image: atmoz/sftp
+  #   container_name: sftp
+  #   restart: unless-stopped
+  #   ports:
+  #     - '${EXTERNAL_SFTP_PORT}:22'
+  #   volumes:
+  #     - ${DOCKER_STORAGE}/sftp/home:/home
+  #     - ${DOCKER_STORAGE}/sftp/users.conf:/etc/sftp/users.conf:ro
+  #     - ${MEDIA_STORAGE}:/home/external/media:ro

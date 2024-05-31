@@ -1,0 +1,37 @@
+---
+version: "3.5"
+
+services:
+
+  foundryvtt:
+    image: felddy/foundryvtt:11.315.1  # https://hub.docker.com/r/felddy/foundryvtt/tags?page=1&name=release
+    hostname: foundryvtt
+    container_name: foundryvtt
+    restart: unless-stopped
+    # ports:
+    #   - "443:30000"
+    networks:
+      - external_game_network
+    environment:
+      # reference: https://github.com/felddy/foundryvtt-docker#optional-variables
+      - FOUNDRY_GID=${PGID}
+      - FOUNDRY_UID=${PUID}
+      - FOUNDRY_TURN_CONFIGS=[] # to disable the internal audio/video relay server provide an empty list
+      - FOUNDRY_MINIFY_STATIC_FILES=true
+      - FOUNDRY_COMPRESS_WEBSOCKET=true
+      - FOUNDRY_PROXY_SSL=true
+      - FOUNDRY_PROXY_PORT=443
+      - FOUNDRY_PROTOCOL=4
+      - FOUNDRY_TELEMETRY=false
+      - FOUNDRY_IP_DISCOVERY=false
+      - FOUNDRY_LANGUAGE=la.prettier-login # this is for the login screen plugin - can comment out or put back default 'en.core'
+      - FOUNDRY_AWS_CONFIG=/data/Config/awsConfig.json
+      - CONTAINER_CACHE=/data/container_cache
+      - CONTAINER_VERBOSE=true
+      - TIMEZONE=${TZ}
+      - DEBUG=true
+      # - FOUNDRY_WORLD=
+    volumes:
+      - ${DOCKER_STORAGE}/foundryvtt/data:/data
+      - ${DOCKER_STORAGE}/letsencrypt/keys/letsencrypt/fullchain.pem:/ssl/fullchain.pem:ro
+      - ${DOCKER_STORAGE}/letsencrypt/keys/letsencrypt/privkey.pem:/ssl/privkey.pem:ro

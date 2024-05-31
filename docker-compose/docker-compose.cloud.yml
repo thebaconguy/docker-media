@@ -1,0 +1,106 @@
+---
+version: "3.5"
+
+services:
+
+  nextcloud:
+    image: lscr.io/linuxserver/nextcloud
+    container_name: nextcloud
+    restart: unless-stopped
+    ports:
+      - 7443:443
+    networks:
+      - nextcloud_network
+      - external_web_network
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    security_opt:
+      - no-new-privileges=true
+    depends_on:
+      - nextcloud_db
+      - clamav
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/nextcloud:/config
+      - ${CLOUD_STORAGE}/nextcloud:/data
+      - ${MEDIA_STORAGE}:${MAPPED_MEDIA_STORAGE}:ro
+  
+  nextcloud_db:
+    image: mariadb
+    container_name: nextcloud_db
+    restart: unless-stopped
+    user: '${PUID}:${PGID}'
+    networks:
+      - nextcloud_network
+    volumes:
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/nextcloud_db:/var/lib/mysql
+    command: [
+      '--character-set-server=utf8mb4',
+      '--collation-server=utf8mb4_general_ci',
+      '--transaction-isolation=READ-COMMITTED',
+      '--default-storage-engine=InnoDB',
+      '--innodb-file-per-table=1',
+      '--skip-innodb-read-only-compressed',
+      '--disable-log-bin'
+    ]
+
+  paperless-web:
+    image: ghcr.io/paperless-ngx/paperless-ngx
+    container_name: paperless-web
+    restart: unless-stopped
+    depends_on:
+      - paperless-broker
+      - gotenberg
+      - tika
+    # ports:
+    #   - "8000:8000"
+    networks:
+      - paperless_network
+    user: ${PUID}
+    volumes:
+      - ${DOCKER_STORAGE}/paperless/data:/usr/src/paperless/data
+      - ${DOCKER_STORAGE}/paperless/media:/usr/src/paperless/media
+      - ${DOCKER_STORAGE}/paperless/export:/usr/src/paperless/export
+      - ${DOCKER_STORAGE}/paperless/consume:/usr/src/paperless/consume
+    env_file: ${DOCKER_STORAGE}/paperless/paperless.env
+    environment:
+      - PAPERLESS_REDIS=redis://paperless-broker:6379
+      - PAPERLESS_TIKA_ENABLED=1
+      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://gotenberg:3000
+      - PAPERLESS_TIKA_ENDPOINT=http://tika:9998
+      - PAPERLESS_LOGROTATE_MAX_SIZE=1024
+      - PAPERLESS_LOGROTATE_MAX_BACKUPS=5
+
+  paperless-broker:
+    image: docker.io/library/redis:7
+    container_name: paperless-broker
+    restart: unless-stopped
+    networks:
+      - paperless_network
+    volumes:
+      - ${DOCKER_STORAGE}/paperless/redisdata:/data
+
+  gotenberg:
+    image: docker.io/gotenberg/gotenberg:7.10
+    container_name: gotenberg
+    restart: unless-stopped
+    networks:
+      - paperless_network
+    # The gotenberg chromium route is used to convert .eml files. We do not
+    # want to allow external content like tracking pixels or even javascript.
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+
+  tika:
+    image: ghcr.io/paperless-ngx/tika
+    container_name: tika
+    restart: unless-stopped
+    networks:
+      - paperless_network

@@ -1,0 +1,280 @@
+---
+version: "3.5"
+
+services:
+
+  ## shows manager
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    container_name: sonarr
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/sonarr/custom_scripts/80-config:/etc/cont-init.d/80-config  # adds python3 support
+      - ${DOCKER_STORAGE}/sonarr:/config
+      - ${DOWNLOADS_STORAGE}:${MAPPED_DOWNLOADS_STORAGE}
+      - ${MEDIA_STORAGE}/tv_shows:${MAPPED_MEDIA_STORAGE}/tv_shows
+
+  ## movie manager
+  radarr:
+    image: lscr.io/linuxserver/radarr
+    container_name: radarr
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/sonarr/custom_scripts/80-config:/etc/cont-init.d/80-config  # adds python3 support
+      - ${DOCKER_STORAGE}/radarr:/config
+      - ${DOCKER_STORAGE}/sonarr/custom_scripts:/config/custom_scripts
+      - ${DOWNLOADS_STORAGE}:${MAPPED_DOWNLOADS_STORAGE}
+      - ${MEDIA_STORAGE}/movies:${MAPPED_MEDIA_STORAGE}/movies
+
+  ## subtitles manager
+  bazarr:
+    image: lscr.io/linuxserver/bazarr
+    container_name: bazarr
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/bazarr:/config
+      - ${DOWNLOADS_STORAGE}:${MAPPED_DOWNLOADS_STORAGE}
+      - ${MEDIA_STORAGE}/tv_shows:${MAPPED_MEDIA_STORAGE}/tv_shows
+      - ${MEDIA_STORAGE}/movies:${MAPPED_MEDIA_STORAGE}/movies
+
+  ## music manager
+  lidarr:
+    image: lscr.io/linuxserver/lidarr
+    container_name: lidarr
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/sonarr/custom_scripts/80-config:/etc/cont-init.d/80-config  # adds python3 support
+      - ${DOCKER_STORAGE}/lidarr:/config
+      - ${DOWNLOADS_STORAGE}:${MAPPED_DOWNLOADS_STORAGE}
+      - ${DOCKER_STORAGE}/sonarr/custom_scripts:/config/custom_scripts
+      - ${MEDIA_STORAGE}/music:${MAPPED_MEDIA_STORAGE}/music
+  
+  ## books and audiobooks manager
+  readarr:
+    image: lscr.io/linuxserver/readarr:develop
+    container_name: readarr
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${MEDIA_STORAGE}/readarr:/config
+      - ${MAPPED_DOWNLOADS_STORAGE}:${MAPPED_DOWNLOADS_STORAGE}
+      - ${MEDIA_STORAGE}/books:${MAPPED_MEDIA_STORAGE}/books
+      - ${MEDIA_STORAGE}/audiobooks:${MAPPED_MEDIA_STORAGE}/audiobooks
+
+  ## media file transcoder
+  tdarr:
+    image: haveagitgat/tdarr
+    container_name: tdarr
+    restart: unless-stopped
+    networks:
+      - internal_web_network
+    ports:
+      - 8265:8265 # webUI port
+      - 8266:8266 # server port
+      - 8267:8267 # node port. It should be mapped on this container because the node container uses the network from the main container
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - UMASK_SET=002
+      - serverIP=0.0.0.0
+      - serverPort=8266
+      - webUIPort=8265
+      # - ROOT_URL=http://localhost/tdarr
+      # - BASE=/tdarr
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/tdarr/server:/app/server
+      - ${DOCKER_STORAGE}/tdarr/configs:/app/configs
+      - ${DOCKER_STORAGE}/tdarr/logs:/app/logs
+      - ${DOWNLOADS_STORAGE}/temp:/temp
+      - ${MEDIA_STORAGE}/tv_shows:${MAPPED_MEDIA_STORAGE}/tv_shows
+      - ${MEDIA_STORAGE}/movies:${MAPPED_MEDIA_STORAGE}/movies
+
+  tdarr-node:
+    image: haveagitgat/tdarr_node
+    container_name: tdarr-node
+    restart: unless-stopped
+    network_mode: service:tdarr
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - UMASK_SET=002
+      - nodeID=MainNode
+      - nodeIP=0.0.0.0
+      - nodePort=8267
+      - serverIP=0.0.0.0
+      - serverPort=8266
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/tdarr2/configs:/app/configs
+      - ${DOCKER_STORAGE}/tdarr2/logs:/app/logs
+      - ${DOWNLOADS_STORAGE}/temp:/temp
+      - ${MEDIA_STORAGE}/tv_shows:${MAPPED_MEDIA_STORAGE}/tv_shows
+      - ${MEDIA_STORAGE}/movies:${MAPPED_MEDIA_STORAGE}/movies
+
+  ## bt and nzb index aggregator
+  prowlarr:
+    image: ghcr.io/linuxserver/prowlarr:develop
+    container_name: prowlarr
+    restart: unless-stopped
+    network_mode: service:vpn
+    # ports:
+    #   - 9696:9696
+    depends_on:
+      - vpn
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/prowlarr:/config
+
+  ## nzb downloader
+  nzbget:
+    image: lscr.io/linuxserver/nzbget
+    container_name: nzbget
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/nzbget:/config
+      - ${DOWNLOADS_STORAGE}/nzb:${MAPPED_DOWNLOADS_STORAGE}/nzb
+
+  ## bt downloader
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+      - UMASK_SET=022
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/qbittorrent/config:/config
+      - ${DOCKER_STORAGE}/qbittorrent/torrents:/torrents
+      - ${DOWNLOADS_STORAGE}/bt:${MAPPED_DOWNLOADS_STORAGE}/bt
+
+  ## internal services dashboard
+  organizr:
+    image: organizr/organizr
+    container_name: organizr
+    restart: unless-stopped
+    networks:
+      - internal_web_network
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/organizr:/config
+
+  ## media requesting service (previously ombi)
+  overseerr:
+    image: lscr.io/linuxserver/overseerr
+    container_name: overseerr
+    restart: unless-stopped
+    # ports:
+    #   - 5055:5055
+    depends_on:
+      - vpn
+      - radarr
+      - sonarr
+    security_opt:
+      - no-new-privileges=true
+    networks:
+      - vpn_network
+      - external_web_network
+    environment:
+      - TZ=${TZ}
+      - PGID=${PGID}
+      - PUID=${PUID}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_STORAGE}/overseerr:/config
+
+  ## media server
+  plexmediaserver:
+    image: plexinc/pms-docker:plexpass
+    container_name: plexmediaserver
+    restart: unless-stopped
+    # ports:
+    #   - 32400:32400
+    networks:
+      - external_web_network
+    security_opt:
+      - no-new-privileges=true
+    labels:
+      - 'autoheal=true'
+    healthcheck:
+      test: curl --connect-timeout 15 --silent --show-error --fail http://localhost:32400/identity
+      interval: 1m00s
+      timeout: 15s
+      retries: 3
+      start_period: 1m00s
+    environment:
+      - TZ=${TZ}
+      - PLEX_GID=${PGID}
+      - PLEX_UID=${PUID}
+      - CHANGE_CONFIG_DIR_OWNERSHIP=false
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      # - ${PLEX_STORAGE}/transcode:/transcode
+      - ${PLEX_STORAGE}/prerolls:/prerolls
+      - ${PLEX_STORAGE}/Plex Media Server:/config/Library/Application Support/Plex Media Server
+      - ${MEDIA_STORAGE}/movies:${MAPPED_MEDIA_STORAGE}/movies
+      - ${MEDIA_STORAGE}/music:${MAPPED_MEDIA_STORAGE}/music
+      - ${MEDIA_STORAGE}/tv_shows:${MAPPED_MEDIA_STORAGE}/tv_shows
